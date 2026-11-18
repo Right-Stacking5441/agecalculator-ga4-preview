@@ -310,21 +310,60 @@
      At large text sizes the copy scrolls inside the banner. Unlike dino.game,
      there is no 3-line floor, so the banner cannot grow over the header on
      short viewports at 200% text. */
+  function readSafeAreaBottom() {
+    var probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;visibility:hidden;padding-bottom:env(safe-area-inset-bottom, 0px);';
+    document.body.appendChild(probe);
+    var v = parseFloat(window.getComputedStyle(probe).paddingBottom) || 0;
+    document.body.removeChild(probe);
+    return v;
+  }
+
   function syncBannerHeight() {
     var el = document.getElementById('consent-banner');
     var root = document.documentElement;
     var open = el && !el.hidden && !root.classList.contains('consent-chosen');
-    var p = open ? el.querySelector('p') : null;
+    var p = open ? el.querySelector('.consent-copy') : null;
     var header = document.querySelector('.mast');
-    if (p && header) {
+    var field = document.getElementById('dob-q');
+    if (p) {
       root.style.removeProperty('--consent-p-max');
-      var headerBottom = header.getBoundingClientRect().bottom;
+      var safeBottom = readSafeAreaBottom();
+      var headerBottom = header ? header.getBoundingClientRect().bottom : 0;
       var rest = el.offsetHeight - p.offsetHeight;
-      var room = window.innerHeight - headerBottom - rest - 8;
+      /* Room below the header, and (when the date field is on screen)
+         below that field, so the banner cannot cover #dob-q on short
+         landscape. Allow for a non-zero safe-area-inset-bottom: the
+         current padding already includes it via rest, but if it is
+         still 0 here, keep an extra allowance so a later inset cannot
+         push the bar over the field. */
+      var maxBanner = window.innerHeight - headerBottom - 8;
+      if (field) {
+        var fieldBox = field.getBoundingClientRect();
+        if (fieldBox.height && fieldBox.bottom > headerBottom) {
+          var clearField = window.innerHeight - fieldBox.bottom - 8;
+          if (clearField < maxBanner) {
+            maxBanner = clearField;
+          }
+        }
+      }
+      var padBottom = parseFloat(window.getComputedStyle(el).paddingBottom) || 0;
+      if (safeBottom > padBottom) {
+        maxBanner -= (safeBottom - padBottom);
+      }
+      var room = maxBanner - rest;
       if (room < 0) {
         room = 0;
       }
       root.style.setProperty('--consent-p-max', room + 'px');
+      /* Second pass: if the banner still overlaps the field, shrink again. */
+      if (field) {
+        var overlap = field.getBoundingClientRect().bottom + 8 - el.getBoundingClientRect().top;
+        if (overlap > 0) {
+          room = Math.max(0, p.offsetHeight - overlap);
+          root.style.setProperty('--consent-p-max', room + 'px');
+        }
+      }
     } else {
       root.style.removeProperty('--consent-p-max');
     }
@@ -373,10 +412,77 @@
     var root = siteRoot();
     return {
       aria_label: 'Analytics cookies',
-      text: 'This site uses Google Analytics only if you accept. No analytics cookies are set until you choose. The dates you type are never sent. See the <a href="' + root + 'privacy/">privacy page</a>, or <a href="#cookie-settings">Cookie settings</a>.',
+      text: 'This site uses Google Analytics only if you accept. No analytics cookies are set until you choose. The dates you type are never sent. See the <a href="' + root + 'privacy/">privacy page</a>.',
       accept: 'Accept',
-      reject: 'Reject'
+      reject: 'Reject',
+      on: 'Analytics is currently on.',
+      off: 'Analytics is currently off.'
     };
+  }
+
+  function storedChoice() {
+    try {
+      var c = localStorage.getItem(KEY);
+      if (c === 'granted' || c === 'denied') {
+        return c;
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  function updateBannerChoiceState(el) {
+    if (!el) {
+      return;
+    }
+    var choice = storedChoice();
+    var t = bannerStrings();
+    var accept = document.getElementById('consent-accept');
+    var reject = document.getElementById('consent-reject');
+    var status = el.querySelector('.consent-status');
+    if (!status) {
+      status = document.createElement('p');
+      status.className = 'consent-status';
+      var copy = el.querySelector('.consent-copy');
+      if (copy && copy.parentNode) {
+        copy.insertAdjacentElement('afterend', status);
+      } else {
+        el.insertBefore(status, el.querySelector('.consent-actions'));
+      }
+    }
+    if (choice === 'granted') {
+      status.hidden = false;
+      status.textContent = t.on;
+      if (accept) {
+        accept.setAttribute('aria-pressed', 'true');
+        accept.classList.add('is-selected');
+      }
+      if (reject) {
+        reject.setAttribute('aria-pressed', 'false');
+        reject.classList.remove('is-selected');
+      }
+    } else if (choice === 'denied') {
+      status.hidden = false;
+      status.textContent = t.off;
+      if (reject) {
+        reject.setAttribute('aria-pressed', 'true');
+        reject.classList.add('is-selected');
+      }
+      if (accept) {
+        accept.setAttribute('aria-pressed', 'false');
+        accept.classList.remove('is-selected');
+      }
+    } else {
+      status.hidden = true;
+      status.textContent = '';
+      if (accept) {
+        accept.removeAttribute('aria-pressed');
+        accept.classList.remove('is-selected');
+      }
+      if (reject) {
+        reject.removeAttribute('aria-pressed');
+        reject.classList.remove('is-selected');
+      }
+    }
   }
 
   function showBanner() {
@@ -387,12 +493,15 @@
     if (!el) {
       el = document.createElement('div');
       el.id = 'consent-banner';
-      el.setAttribute('role', 'dialog');
+      el.setAttribute('role', 'region');
       var t = bannerStrings();
       el.setAttribute('aria-label', t.aria_label);
       el.setAttribute('tabindex', '-1');
       el.innerHTML =
-        '<p>' + t.text + '</p>' +
+        '<div class="consent-text">' +
+        '<p class="consent-copy">' + t.text + '</p>' +
+        '<p class="consent-status" hidden></p>' +
+        '</div>' +
         '<div class="consent-actions">' +
         '<button type="button" id="consent-accept">' + t.accept + '</button>' +
         '<button type="button" id="consent-reject">' + t.reject + '</button>' +
@@ -403,29 +512,43 @@
     document.documentElement.classList.add('has-consent-banner');
     document.documentElement.classList.remove('consent-chosen');
     document.body.classList.add('has-consent-banner');
+    updateBannerChoiceState(el);
     syncBannerHeight();
     bindBannerButtons(el);
   }
 
+  function focusBanner() {
+    var banner = document.getElementById('consent-banner');
+    if (!banner) {
+      return;
+    }
+    if (!banner.hasAttribute('tabindex')) {
+      banner.setAttribute('tabindex', '-1');
+    }
+    try {
+      banner.focus({ preventScroll: true });
+    } catch (err) {
+      banner.focus();
+    }
+  }
+
+  /* Never stores a choice of its own. Withdrawal happens only when the
+     visitor presses Reject. If the first-visit banner is already open
+     and nothing is stored, this just focuses the banner. */
   function openCookieSettings(event) {
     if (event) {
       event.preventDefault();
     }
-    store('denied');
-    applyConsent('denied');
-    clearGaCookies();
-    showBanner();
-    var banner = document.getElementById('consent-banner');
-    if (banner) {
-      if (!banner.hasAttribute('tabindex')) {
-        banner.setAttribute('tabindex', '-1');
-      }
-      try {
-        banner.focus({ preventScroll: true });
-      } catch (err) {
-        banner.focus();
-      }
+    var el = document.getElementById('consent-banner');
+    var alreadyOpen = !!(el && !el.hidden &&
+      !document.documentElement.classList.contains('consent-chosen'));
+    if (alreadyOpen) {
+      updateBannerChoiceState(el);
+      focusBanner();
+      return;
     }
+    showBanner();
+    focusBanner();
   }
 
   window.agecalcOpenCookieSettings = openCookieSettings;

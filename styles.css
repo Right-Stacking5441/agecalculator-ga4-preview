@@ -978,7 +978,9 @@ body.widget { --leaf-h: 470px; }
   color: var(--ink);
   font-size: 15px;
   line-height: 1.45;
-  padding: var(--s4) var(--s5) calc(var(--s4) + env(safe-area-inset-bottom, 0px));
+  padding-top: var(--s4);
+  padding-bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px));
+  padding-inline: max(var(--s5), env(safe-area-inset-left, 0px)) max(var(--s5), env(safe-area-inset-right, 0px));
   max-height: min(50dvh, calc(100dvh - 4.5rem));
   box-sizing: border-box;
 }
@@ -990,12 +992,21 @@ html.consent-chosen #consent-banner {
   outline: 3px solid var(--focus);
   outline-offset: -3px;
 }
-#consent-banner p {
-  margin: 0;
+.consent-text {
   flex: 1 1 16rem;
   max-width: 46rem;
+  min-width: 0;
+}
+#consent-banner .consent-copy {
+  margin: 0;
   max-height: var(--consent-p-max, 40dvh);
   overflow-y: auto;
+}
+#consent-banner .consent-status {
+  margin: var(--s2) 0 0;
+}
+#consent-banner .consent-status[hidden] {
+  display: none !important;
 }
 .consent-actions {
   display: flex;
@@ -1014,6 +1025,10 @@ html.consent-chosen #consent-banner {
   min-height: 44px;
   min-width: 44px;
   cursor: pointer;
+}
+#consent-banner button.is-selected,
+#consent-banner button[aria-pressed="true"] {
+  background: var(--desk);
 }
 @media (hover: hover) {
   #consent-banner button:hover { background: var(--desk); }
@@ -1046,6 +1061,38 @@ body.has-consent-banner {
 }
 .cookie-table code {
   font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace;
+}
+@media (max-width: 40rem) {
+  .cookie-table-wrap { overflow: visible; }
+  .cookie-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .cookie-table,
+  .cookie-table tbody,
+  .cookie-table tr,
+  .cookie-table td {
+    display: block;
+    width: 100%;
+  }
+  .cookie-table tr {
+    border-bottom: 1.5px solid var(--ink);
+    padding: var(--s3) 0 var(--s4);
+    margin: 0;
+  }
+  .cookie-table td {
+    border: 0;
+    padding: var(--s2) 0;
+  }
+  .cookie-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
 }
 @media print {
   #consent-banner { display: none !important; }

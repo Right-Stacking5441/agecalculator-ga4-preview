@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
+<meta name="robots" content="noindex, nofollow"/>
+<script>(function(){try{var c=localStorage.getItem("agecalculator.analyticsConsent");if(c==="granted"||c==="denied")document.documentElement.classList.add("consent-chosen");else document.documentElement.classList.add("has-consent-banner");}catch(e){document.documentElement.classList.add("has-consent-banner");}})();</script>
+<title>Birthday countdown: Days until your next birthday</title>
+<meta content="Type a date of birth to see how many days until the next birthday, the weekday it falls on, the age it brings, and how many hours are left." name="description"/>
+<script>document.documentElement.classList.add('js');
+(function () {
+  function failsafe() {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', failsafe);
+      return;
+    }
+    var menu = document.querySelector('.nav-menu');
+    if (!menu) return;
+    if (menu.getAttribute('data-menu-ready') === '1') return;
+    if (document.documentElement.getAttribute('data-menu-fallback') === '1') return;
+    document.documentElement.setAttribute('data-menu-fallback', '1');
+    menu.classList.remove('is-enhanced');
+    var list = document.getElementById('nav-menu-list');
+    if (list) list.removeAttribute('hidden');
+    var btn = menu.querySelector('button[aria-controls]');
+    if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
+    var back = document.querySelector('.nav-menu-back');
+    if (back && back.parentNode) back.parentNode.removeChild(back);
+  }
+  setTimeout(failsafe, 3000);
+  window.agecalcMenuFailsafe = failsafe;
+})();
+</script><link href="https://agecalculator.com/birthday-countdown/" rel="canonical"/>
+<meta content="Birthday countdown: Days until your next birthday" property="og:title"/>
+<meta content="Type a date of birth to see how many days until the next birthday, the weekday it falls on, the age it brings, and how many hours are left." property="og:description"/>
+<meta content="https://agecalculator.com/birthday-countdown/" property="og:url"/>
+<meta content="website" property="og:type"/>
+<meta content="#f1f1ec" name="theme-color"/>
+<link href="../favicon.ico" rel="icon" sizes="32x32"/>
+<link href="../favicon.svg" rel="icon" type="image/svg+xml"/>
+<link as="font" crossorigin="" href="../fonts/libre-franklin-var.woff2" rel="preload" type="font/woff2"/>
+<link href="../styles.css?v=326c68973e" rel="stylesheet"/>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "WebApplication",
+ "name": "Birthday countdown: Days until your next birthday",
+ "url": "https://agecalculator.com/birthday-countdown/",
+ "applicationCategory": "UtilitiesApplication",
+ "operatingSystem": "All",
+ "browserRequirements": "Requires JavaScript",
+ "description": "Type a date of birth to see how many days until the next birthday, the weekday it falls on, the age it brings, and how many hours are left.",
+ "offers": {
+  "@type": "Offer",
+  "price": "0",
+  "priceCurrency": "GBP"
+ }
+}
+</script>
+<script>var q=location.search;if(/[?&](dob|a|b|start|end|test|on|year)=/.test(q))document.documentElement.classList.add('prefill');if(/[?&]year=/.test(q))document.documentElement.classList.add('prefill-year');if(/[?&](on|year)=/.test(q))document.documentElement.classList.add('prefill-on')</script>
+<meta content="light" name="color-scheme"/><meta content="summary" name="twitter:card"/><meta content="https://agecalculator.com/og-image.png" property="og:image"/><meta content="https://agecalculator.com/og-image.png" name="twitter:image"/><link href="../apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/><link href="../ux.css?v=f0ee39e981" rel="stylesheet"/><link href="../share.css?v=5b6a6866e2" rel="stylesheet"/><link href="../card.css?v=ba541beaaf" rel="stylesheet"/><link href="../unslop.css?v=4e77a2675e" rel="stylesheet"/><link href="../apple.css?v=c4a6dada38" rel="stylesheet"/><noscript><style>.on-date, .on.settings button, .on.settings .tzline, .parts-toggle, .parts-shared, #leaf .ph-msg, #on-label[data-idle], .on.settings:has(#on-label[data-idle]) { display: none !important; }</style></noscript><script src="../consent.js?v=c20458a3c8"></script></head>
+<body data-page="birthday-countdown">
+<a class="skip" href="#tool">Skip to the calculator</a>
+<header class="mast"><div class="wrap"><a class="brand" href="../"><svg aria-hidden="true" height="28" viewbox="0 0 26 28" width="26"><rect fill="#fff" height="24" stroke="#1c1c1a" stroke-width="1.5" width="24" x="1" y="3"></rect><rect fill="#b4231b" height="7" stroke="#1c1c1a" stroke-width="1.5" width="24" x="1" y="3"></rect><circle cx="7.5" cy="6.5" fill="#fff" r="1.4"></circle><circle cx="18.5" cy="6.5" fill="#fff" r="1.4"></circle><path d="M7 1v4M19 1v4" stroke="#1c1c1a" stroke-width="1.5"></path><path d="M8.2 22.5l4.3-8.8 4.3 8.8M9.8 19.4h5.4" fill="none" stroke="#1c1c1a" stroke-width="1.9"></path></svg><span class="wm">agecalculator<span>.com</span></span></a><nav class="nav-menu"><ul id="nav-menu-list"><li><a href="../">Age calculator</a></li><li><a href="../difference/">Age difference</a></li><li><a href="../past/">How old was I?</a></li><li><a href="../how-old-will-i-be/">How old will I be?</a></li><li><a href="../days-between-dates/">Days between dates</a></li><li><a href="../chronological-age/">Chronological age</a></li><li><a aria-current="page" href="../birthday-countdown/">Birthday countdown</a></li><li><a href="../korean-age/">Korean age</a></li><li><a href="../what-year-was-i-born/">What year was I born?</a></li><li><a href="../dog-age/">Dog age</a></li><li><a href="../cat-age/">Cat age</a></li></ul></nav></div></header>
+<main id="main">
+<div class="band"><div class="wrap">
+<div class="calc" data-calc="" data-tool="countdown" id="tool">
+<div class="entry-col"><div class="intro"><h1>Birthday countdown</h1><p class="lede">For cards, parties and plain impatience: the days left until the next birthday, and the day of the week it lands on.</p></div><form autocomplete="on" class="entry" novalidate="">
+<div class="datefield" data-datefield="dob">
+<label class="df-label" for="dob-q">Enter the date of birth</label>
+<input aria-describedby="dob-read" autocomplete="bday" class="quick" id="dob-q" placeholder="e.g. 15 March 1995" spellcheck="false" type="text"/>
+<div class="df-foot"><p class="readback" id="dob-read"></p><button aria-controls="dob-parts" aria-expanded="false" class="textbtn parts-toggle" type="button"><svg aria-hidden="true" class="ic ic-boxes" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M3.4 8.9l4.7.1v6.1H3.5zM10 9h4.3l.1 6h-4.4zM16.4 8.9h4.2v6.2h-4.2z"></path></svg><span>Type day, month and year separately</span></button></div><div aria-label="Date of birth: day, month and year" class="parts" hidden="" id="dob-parts" role="group">
+<label><span>Day</span><input autocomplete="bday-day" class="p-d" inputmode="numeric" maxlength="2" placeholder="DD" type="text"/></label>
+<label><span>Month</span><input autocomplete="bday-month" class="p-m" inputmode="numeric" maxlength="2" placeholder="MM" type="text"/></label>
+<label><span>Year</span><input autocomplete="bday-year" class="p-y" inputmode="numeric" maxlength="4" placeholder="YYYY" type="text"/></label>
+</div>
+</div>
+</form></div>
+<div class="result"><div class="print-meta pm-top"></div><div class="leaf leaf-stack" data-state="empty" id="leaf"><div class="leaf-body"><div class="lead"><p class="ph-msg es-say">Whose birthday? Type the date of birth to start counting.</p><p class="es-eg">On Christmas Day 2025, a 14 February birthday was 51 days away. It fell on a Saturday.</p></div></div><noscript><p class="hint">This calculator needs JavaScript to work the result out. The method is written out below the tool if you’d rather do it on paper.</p></noscript></div><div aria-label="Copy or share this result" class="acts" role="group"><button class="act" data-act="age" type="button"><svg aria-hidden="true" class="ic ic-copy" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M8.7 8.4l10.4.1-.1 12H8.6zM15.3 8.3V4.2L4.9 4.3l-.1 12.1h3.7"></path></svg><span class="act-l">Copy days</span></button><button class="act" data-act="all" type="button"><svg aria-hidden="true" class="ic ic-copy" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M8.7 8.4l10.4.1-.1 12H8.6zM15.3 8.3V4.2L4.9 4.3l-.1 12.1h3.7"></path></svg><span class="act-l">Copy details</span></button><button class="act" data-act="link" type="button"><svg aria-hidden="true" class="ic ic-copy" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M8.7 8.4l10.4.1-.1 12H8.6zM15.3 8.3V4.2L4.9 4.3l-.1 12.1h3.7"></path></svg><span class="act-l">Copy link</span></button><button class="act act-print" data-act="print" type="button"><svg aria-hidden="true" class="ic ic-printer" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M7.1 9V3.9h9.7V9M5.8 17.3H4.4c-.6 0-1.1-.4-1.1-1V10.1c0-.6.5-1.1 1.1-1.1h15.3c.6 0 1 .5 1 1.1v6.2c0 .6-.4 1-1 1h-1.5M7.1 14.1l9.9.1-.1 6.3H7.2z"></path></svg><span class="act-l">Print</span></button></div><p aria-live="polite" class="sr-only" id="copy-live"></p><div class="print-meta pm-bottom"></div><p aria-live="polite" class="sr-only" id="live"></p></div>
+</div>
+</div></div>
+<div class="wrap page"><div class="content"><nav aria-labelledby="rel-h" class="related"><h2 id="rel-h">More calculators</h2><ul><li><a href="../">Age calculator</a></li><li><a href="../difference/">Age difference</a></li><li><a href="../past/">How old was I?</a></li><li><a href="../how-old-will-i-be/">How old will I be?</a></li><li><a href="../days-between-dates/">Days between dates</a></li><li><a href="../chronological-age/">Chronological age</a></li><li><a href="../korean-age/">Korean age</a></li><li><a href="../what-year-was-i-born/">What year was I born?</a></li><li><a href="../dog-age/">Dog age</a></li><li><a href="../cat-age/">Cat age</a></li></ul></nav>
+<details class="topic"><summary><h2>From 16 November to 15 March</h2><svg aria-hidden="true" class="ic ic-chev chev" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M6.5 9.4c1.9 1.7 3.7 3.4 5.5 5.2 1.8-1.8 3.6-3.6 5.5-5.3"></path></svg></summary><div class="topic-body">
+<p>On Monday 16 November 2026, for example, someone born on 15 March 1995 has 119 days to go until their next birthday. Counted out:</p>
+<ul><li>Days left in November after the 16th: 14.</li><li>December: 31. January: 31. February 2027: 28, because 2027 isn’t a leap year.</li><li>Days in March up to the 15th: 15.</li></ul>
+<p>14 + 31 + 31 + 28 + 15 = 119 days, which is exactly 17 weeks. That birthday falls on Monday 15 March 2027, when they turn 32.</p>
+</div></details>
+<details class="topic"><summary><h2>What the countdown shows</h2><svg aria-hidden="true" class="ic ic-chev chev" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M6.5 9.4c1.9 1.7 3.7 3.4 5.5 5.2 1.8-1.8 3.6-3.6 5.5-5.3"></path></svg></summary><div class="topic-body">
+<p>The big number is the days left until the next birthday, with the date, the weekday and the age it brings underneath. Under that you’ll find the same wait in weeks and days, and how many hours are left until the birthday. Open More to see whether the birthday lands on a weekend and how many birthdays have gone by so far. The hours figure is the only part of the page that updates as time passes.</p>
+<p>If the birthday is today, the page says so and wishes a happy birthday, instead of counting to next year.</p>
+</div></details>
+<details class="topic"><summary><h2>Which day it counts to</h2><svg aria-hidden="true" class="ic ic-chev chev" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M6.5 9.4c1.9 1.7 3.7 3.4 5.5 5.2 1.8-1.8 3.6-3.6 5.5-5.3"></path></svg></summary><div class="topic-body">
+<p>The big number is whole calendar days from today to the birthday. On the day before, it says 1. Today’s date comes from your time zone, so if you’re in London and the birthday person is in Sydney, their birthday will start nine to eleven hours before yours does, depending on the time of year, and this page won’t show it until it’s the day where you are.</p>
+<p>The hours line is the time left until the birthday, in whole hours, in your time zone. On the day before a birthday, the big number says 1 and the hours left run down through that last day.</p>
+</div></details>
+<details class="topic"><summary><h2>Born on 29 February</h2><svg aria-hidden="true" class="ic ic-chev chev" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M6.5 9.4c1.9 1.7 3.7 3.4 5.5 5.2 1.8-1.8 3.6-3.6 5.5-5.3"></path></svg></summary><div class="topic-body">
+<p>Born on 29 February? In years without one, the countdown runs to 1 March, and a note on the result says so (<a href="../#born-on-29-february">here’s why</a>). On 16 November 2026, for example, someone born on 29 February 2008 has 105 days to go, to Monday 1 March 2027, when they turn 19. In 2028 the countdown runs to 29 February itself. This is the same rule the main <a href="../">age calculator</a> uses, so the two pages always agree on the date.</p>
+</div></details>
+<details class="topic"><summary><h2>Counting down for someone else</h2><svg aria-hidden="true" class="ic ic-chev chev" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M6.5 9.4c1.9 1.7 3.7 3.4 5.5 5.2 1.8-1.8 3.6-3.6 5.5-5.3"></path></svg></summary><div class="topic-body">
+<p>Type their date of birth instead of yours. The result shows the age they’re turning, which is handy for the number on the card or the candles, and the weekday, which helps when you’re planning a party around it. To see how much older or younger they are than you, use the <a href="../difference/">age difference calculator</a>.</p>
+</div></details>
+<details class="topic"><summary><h2>What the other figures mean</h2><svg aria-hidden="true" class="ic ic-chev chev" focusable="false" height="20" viewbox="0 0 24 24" width="20"><path d="M6.5 9.4c1.9 1.7 3.7 3.4 5.5 5.2 1.8-1.8 3.6-3.6 5.5-5.3"></path></svg></summary><div class="topic-body">
+<p>The line under the date splits the days left into whole weeks and leftover days. Under More, <b>Weekend birthday?</b> tells you whether the date is a Saturday or Sunday, and <b>Birthdays so far</b> is the number of birthdays already had, which is the same as current age in completed years.</p>
+<p>To count down to something that isn’t a birthday, such as a wedding, a due date or the end of term, put today and that date into <a href="../days-between-dates/">days between dates</a>. It gives the same day count plus weekdays.</p>
+</div></details>
+</div></div>
+</main>
+<footer class="foot"><div class="wrap">
+<div class="foot-index" id="all-tools"><h2>Every calculator on the site</h2><ul class="foot-tools"><li><a href="../">Age calculator</a></li><li><a href="../difference/">Age difference</a></li><li><a href="../past/">How old was I?</a></li><li><a href="../how-old-will-i-be/">How old will I be?</a></li><li><a href="../days-between-dates/">Days between dates</a></li><li><a href="../chronological-age/">Chronological age</a></li><li><a href="../korean-age/">Korean age</a></li><li><a href="../what-year-was-i-born/">What year was I born?</a></li><li><a href="../dog-age/">Dog age</a></li><li><a href="../cat-age/">Cat age</a></li></ul></div>
+<div class="foot-small"><p><b>agecalculator.com</b>. Dates you type are worked out in your browser and aren’t sent anywhere. Free to use.</p><p><a href="../embed/">Put this calculator on your own site</a> · <a href="../privacy/">Privacy</a> · <a href="../contact/">Contact</a> · <a href="#cookie-settings">Cookie settings</a></p></div>
+</div></footer>
+<script defer="" src="../dates.js?v=5667ed1727"></script>
+<script defer="" src="../app.js?v=c354612b9b"></script><script defer="" src="../share.js?v=37e0977a2f"></script>
+<script>
+(function(){
+  try {
+  if (document.documentElement.getAttribute('data-menu-fallback') === '1') return;
+  var menu = document.querySelector('.nav-menu');
+  if (!menu) return;
+  var list = menu.querySelector('ul');
+  if (!list) return;
+  if (!list.id) list.id = 'nav-menu-list';
+
+  menu.classList.add('is-enhanced');
+
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-controls', list.id);
+  btn.setAttribute('aria-label', 'Calculators');
+  btn.innerHTML = '<svg class="ic ic-menu" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M4 7.2c5.4-.3 10.7-.2 16 .1M4 12.1c5.3-.2 10.6-.1 16 0M4 16.9c3.6-.2 7.2-.2 10.8 0"/></svg><span>Calculators</span>';
+  menu.insertBefore(btn, list);
+
+  var back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'nav-menu-back';
+  back.setAttribute('tabindex', '-1');
+  back.setAttribute('aria-label', 'Close menu');
+  back.hidden = true;
+  document.body.appendChild(back);
+
+  var debug = /(?:^|[?&])debug=1(?:&|$)/.test(location.search);
+  var logEl = null;
+  var logLines = [];
+  function pad(n, w) { n = String(n); return n.length >= w ? n : ('000' + n).slice(-w); }
+  function stamp() {
+    var d = new Date();
+    return pad(d.getHours(), 2) + ':' + pad(d.getMinutes(), 2) + ':' + pad(d.getSeconds(), 2) + '.' + pad(d.getMilliseconds(), 3);
+  }
+  function targetName(t) {
+    if (!t || !t.tagName) return String(t || 'unknown');
+    var id = t.id ? '#' + t.id : '';
+    var cls = (typeof t.className === 'string' && t.className.trim()) ? '.' + t.className.trim().split(/\s+/).join('.') : '';
+    return t.tagName.toLowerCase() + id + cls;
+  }
+  if (debug) {
+    logEl = document.createElement('pre');
+    logEl.id = 'nav-menu-debug';
+    logEl.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(logEl);
+  }
+  function log(type, target, open) {
+    if (!debug || !logEl) return;
+    logLines.push(stamp() + ' ' + type + ' ' + targetName(target) + ' open=' + open);
+    if (logLines.length > 15) logLines = logLines.slice(-15);
+    // Use fromCharCode so a \n escape cannot be turned into a raw newline by the HTML pipeline.
+    logEl.textContent = logLines.join(String.fromCharCode(10));
+  }
+  function related(t) {
+    if (!t || !t.tagName) return false;
+    return t === btn || btn.contains(t) || t === back || t === list || list.contains(t) || t === menu || menu.contains(t);
+  }
+  if (debug) {
+    ['click', 'pointerdown', 'pointerup', 'touchstart', 'touchend', 'keydown'].forEach(function (type) {
+      document.addEventListener(type, function (e) {
+        if (type === 'keydown' && e.key !== 'Escape' && e.key !== 'Esc' && !related(e.target)) return;
+        if (type !== 'keydown' && !related(e.target)) return;
+        var tgt = e.target;
+        setTimeout(function () { log(e.type, tgt, isOpen()); }, 0);
+      }, true);
+    });
+  }
+
+  function isOpen() { return !list.hasAttribute('hidden'); }
+  function setOpen(open) {
+    open = !!open;
+    if (open) {
+      list.removeAttribute('hidden');
+      back.removeAttribute('hidden');
+    } else {
+      list.setAttribute('hidden', '');
+      back.setAttribute('hidden', '');
+    }
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  setOpen(false);
+
+  /* One click handler on the button. It does not toggle on pointerdown, and
+     there is no native details toggle left to fight with. */
+  btn.addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpen(!isOpen());
+  });
+
+  back.addEventListener('click', function (e) {
+    e.preventDefault();
+    setOpen(false);
+  });
+
+  list.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a') : null;
+    if (a && list.contains(a)) setOpen(false);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' && e.key !== 'Esc') return;
+    if (!isOpen()) return;
+    setOpen(false);
+    btn.focus({ preventScroll: true });
+  });
+
+  menu.addEventListener('focusout', function (e) {
+    if (!isOpen()) return;
+    var next = e.relatedTarget;
+    if (!next) return;
+    if (menu.contains(next)) return;
+    setOpen(false);
+  });
+
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) setOpen(false);
+  });
+  window.addEventListener('popstate', function () { setOpen(false); });
+  menu.setAttribute('data-menu-ready', '1');
+  } catch (err) {
+    if (typeof window.agecalcMenuFailsafe === 'function') window.agecalcMenuFailsafe();
+  }
+})();
+
+(function(){
+  function openHash() {
+    var id = (location.hash || '').replace(/^#/, '');
+    if (!id) return;
+    var el = document.getElementById(id);
+    if (!el) return;
+    var d = (el.matches && el.matches('details')) ? el : (el.closest ? el.closest('details') : null);
+    if (d) d.open = true;
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', openHash);
+  else openHash();
+  window.addEventListener('hashchange', openHash);
+})();
+</script><template id="empty-tpl"><p class="ph-msg es-say">Whose birthday? Type the date of birth to start counting.</p><p class="es-eg">On Christmas Day 2025, a 14 February birthday was 51 days away. It fell on a Saturday.</p></template></body>
+</html>

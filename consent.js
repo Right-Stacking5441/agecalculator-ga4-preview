@@ -6,6 +6,8 @@
   var GA_MEASUREMENT_ID = 'G-DQQ5G4H336';
   var host = location.hostname;
   var isProd = host === 'agecalculator.com' || host === 'www.agecalculator.com';
+  var gaTransportBlocked = false;
+  var cookieSettingsOpener = null;
 
   window.dataLayer = window.dataLayer || [];
   window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
@@ -163,9 +165,30 @@
     }).join('\n');
   }
 
+  function isGaCollectUrl(url) {
+    if (!url) {
+      return false;
+    }
+    try {
+      var u = new URL(typeof url === 'string' ? url : String(url), location.href);
+      if (!/google-analytics\.com$|\.google-analytics\.com$|analytics\.google\.com$/.test(u.hostname)) {
+        return false;
+      }
+      return /\/(?:g|j)\/collect(?:\?|$)|\/collect(?:\?|$)/.test(u.pathname);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function shouldDropCollect(url) {
+    return gaTransportBlocked && isGaCollectUrl(url);
+  }
+
   /* Enhanced measurement can send later events (scroll, outbound click,
      form_start, form_submit) that do not always go through our config
-     call. Scrub dl/dr/dt and any URL-like event parameter on the way out. */
+     call. Scrub dl/dr/dt and any URL-like event parameter on the way out.
+     After Reject, drop collect requests so a queued event cannot leave
+     the browser. */
   function installCollectScrubber() {
     if (window.__AGECALC_GA_SCRUB) {
       return;
@@ -174,6 +197,9 @@
     if (navigator.sendBeacon) {
       var beacon = navigator.sendBeacon.bind(navigator);
       navigator.sendBeacon = function (url, data) {
+        if (shouldDropCollect(url)) {
+          return true;
+        }
         url = scrubCollectUrlString(url);
         if (typeof data === 'string') {
           data = scrubCollectBody(data);
@@ -184,6 +210,10 @@
     if (window.fetch) {
       var origFetch = window.fetch.bind(window);
       window.fetch = function (input, init) {
+        var fetchUrl = typeof input === 'string' ? input : (input && input.url);
+        if (shouldDropCollect(fetchUrl)) {
+          return Promise.resolve(new Response('', { status: 204, statusText: 'No Content' }));
+        }
         if (typeof input === 'string') {
           input = scrubCollectUrlString(input);
         } else if (input && input.url) {
@@ -199,12 +229,43 @@
     }
     if (window.XMLHttpRequest) {
       var open = XMLHttpRequest.prototype.open;
+      var send = XMLHttpRequest.prototype.send;
       XMLHttpRequest.prototype.open = function (method, url) {
+        this.__agecalcGaUrl = url;
         if (typeof url === 'string') {
-          arguments[1] = scrubCollectUrlString(url);
+          if (shouldDropCollect(url)) {
+            arguments[1] = 'about:blank';
+          } else {
+            arguments[1] = scrubCollectUrlString(url);
+          }
         }
         return open.apply(this, arguments);
       };
+      XMLHttpRequest.prototype.send = function () {
+        if (shouldDropCollect(this.__agecalcGaUrl)) {
+          return;
+        }
+        return send.apply(this, arguments);
+      };
+    }
+    var imgDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+    if (imgDesc && imgDesc.set && imgDesc.get) {
+      Object.defineProperty(HTMLImageElement.prototype, 'src', {
+        configurable: true,
+        enumerable: imgDesc.enumerable,
+        get: function () {
+          return imgDesc.get.call(this);
+        },
+        set: function (value) {
+          if (shouldDropCollect(value)) {
+            return;
+          }
+          if (isGaCollectUrl(value)) {
+            value = scrubCollectUrlString(value);
+          }
+          imgDesc.set.call(this, value);
+        }
+      });
     }
   }
   installCollectScrubber();
@@ -233,6 +294,7 @@
 
   function applyConsent(choice) {
     if (choice === 'granted') {
+      gaTransportBlocked = false;
       window['ga-disable-' + GA_MEASUREMENT_ID] = false;
       window.gtag('consent', 'update', {
         analytics_storage: 'granted',
@@ -242,6 +304,9 @@
       });
       loadGa();
     } else {
+      /* Order matters: tell gtag first, then disable, then drop any
+         collect that was already queued (scroll and similar). Cookies
+         are cleared by the Reject handler after this returns. */
       window.gtag('consent', 'update', {
         analytics_storage: 'denied',
         ad_storage: 'denied',
@@ -249,6 +314,7 @@
         ad_personalization: 'denied'
       });
       window['ga-disable-' + GA_MEASUREMENT_ID] = true;
+      gaTransportBlocked = true;
     }
   }
 
@@ -283,18 +349,57 @@
         domains.push('.' + parts.slice(-2).join('.'));
       }
     }
+    var paths = ['/'];
+    var pathName = location.pathname || '/';
+    if (pathName && paths.indexOf(pathName) === -1) {
+      paths.push(pathName);
+    }
+    if (pathName.length > 1 && pathName.charAt(pathName.length - 1) === '/') {
+      var trimmed = pathName.slice(0, -1);
+      if (trimmed && paths.indexOf(trimmed) === -1) {
+        paths.push(trimmed);
+      }
+    } else if (pathName !== '/') {
+      paths.push(pathName + '/');
+    }
     names.forEach(function (name) {
-      document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
-      domains.forEach(function (domain) {
-        if (!domain) {
-          return;
-        }
-        document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=' + domain;
+      paths.forEach(function (path) {
+        document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=' + path;
+        domains.forEach(function (domain) {
+          if (!domain) {
+            return;
+          }
+          document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=' + path + '; domain=' + domain;
+        });
       });
     });
   }
 
-  function hideBanner() {
+  function restoreFocus() {
+    var target = cookieSettingsOpener;
+    cookieSettingsOpener = null;
+    if (target && document.contains(target) && typeof target.focus === 'function') {
+      try {
+        target.focus({ preventScroll: true });
+      } catch (e) {
+        try { target.focus(); } catch (e2) { /* ignore */ }
+      }
+      return;
+    }
+    var heading = document.querySelector('main h1, [role="main"] h1, h1, main, [role="main"]');
+    if (heading) {
+      if (!heading.hasAttribute('tabindex')) {
+        heading.setAttribute('tabindex', '-1');
+      }
+      try {
+        heading.focus({ preventScroll: true });
+      } catch (e) {
+        try { heading.focus(); } catch (e2) { /* ignore */ }
+      }
+    }
+  }
+
+  function hideBanner(opts) {
     var el = document.getElementById('consent-banner');
     if (el) {
       el.hidden = true;
@@ -303,13 +408,18 @@
     document.documentElement.classList.add('consent-chosen');
     document.body.classList.remove('has-consent-banner');
     syncBannerHeight();
+    if (opts && opts.silent) {
+      cookieSettingsOpener = null;
+    } else {
+      restoreFocus();
+    }
   }
 
   /* Pad the page by the banner height while it is open (CSS reads
-     --consent-h), so it never sits on top of the header or the last lines.
-     At large text sizes the copy scrolls inside the banner. Unlike dino.game,
-     there is no 3-line floor, so the banner cannot grow over the header on
-     short viewports at 200% text. */
+     --consent-h). The banner itself is a max-height flex container:
+     the copy (or the whole text column) scrolls, and Accept/Reject
+     stay in view. First-visit copy is never hidden. The keep-clear
+     rule for #dob-q only applies when that field is on screen. */
   function readSafeAreaBottom() {
     var probe = document.createElement('div');
     probe.style.cssText = 'position:absolute;visibility:hidden;padding-bottom:env(safe-area-inset-bottom, 0px);';
@@ -319,77 +429,149 @@
     return v;
   }
 
+  function viewHeight() {
+    var vv = window.visualViewport;
+    return (vv && vv.height) ? vv.height : window.innerHeight;
+  }
+
+  function fieldIsOnScreen(field) {
+    if (!field) {
+      return false;
+    }
+    var box = field.getBoundingClientRect();
+    if (!box.height) {
+      return false;
+    }
+    return box.bottom > 0 && box.top < viewHeight();
+  }
+
   function syncBannerHeight() {
     var el = document.getElementById('consent-banner');
     var root = document.documentElement;
     var open = el && !el.hidden && !root.classList.contains('consent-chosen');
-    var p = open ? el.querySelector('.consent-copy') : null;
+    if (!open) {
+      root.style.removeProperty('--consent-banner-max');
+      root.style.setProperty('--consent-h', '0px');
+      return;
+    }
+    var p = el.querySelector('.consent-copy');
     var header = document.querySelector('.mast');
     var field = document.getElementById('dob-q');
+    var status = el.querySelector('.consent-status');
+    var statusShowing = !!(status && !status.hidden && (status.textContent || '').trim());
     if (p) {
-      p.style.display = '';
-      root.style.removeProperty('--consent-p-max');
-      var safeBottom = readSafeAreaBottom();
-      var headerBottom = header ? header.getBoundingClientRect().bottom : 0;
-      var rest = el.offsetHeight - p.offsetHeight;
-      /* Room below the header, and (when the date field is on screen)
-         below that field, so the banner cannot cover #dob-q on short
-         landscape. Allow for a non-zero safe-area-inset-bottom: the
-         current padding already includes it via rest, but if it is
-         still 0 here, keep an extra allowance so a later inset cannot
-         push the bar over the field. */
-      var maxBanner = window.innerHeight - headerBottom - 8;
-      if (field) {
-        var fieldBox = field.getBoundingClientRect();
-        if (fieldBox.height && fieldBox.bottom > headerBottom) {
-          var clearField = window.innerHeight - fieldBox.bottom - 8;
-          if (clearField < maxBanner) {
-            maxBanner = clearField;
-          }
-        }
+      p.classList.remove('is-visually-hidden');
+    }
+    root.style.removeProperty('--consent-banner-max');
+
+    var vh = viewHeight();
+    var rem = parseFloat(window.getComputedStyle(root).fontSize) || 16;
+    var cssCap = Math.min(vh * 0.5, vh - 4.5 * rem);
+    if (!(cssCap > 0)) {
+      cssCap = vh;
+    }
+    var headerBottom = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+    var ceiling = vh - headerBottom - 8;
+    var fieldOnScreen = fieldIsOnScreen(field);
+    if (fieldOnScreen) {
+      var clearField = vh - field.getBoundingClientRect().bottom - 8;
+      if (clearField < ceiling) {
+        ceiling = clearField;
       }
-      var padBottom = parseFloat(window.getComputedStyle(el).paddingBottom) || 0;
-      if (safeBottom > padBottom) {
-        maxBanner -= (safeBottom - padBottom);
-      }
-      var room = maxBanner - rest;
-      if (room < 0) {
-        room = 0;
-      }
-      var status = el.querySelector('.consent-status');
-      var statusShowing = !!(status && !status.hidden && (status.textContent || '').trim());
-      var line = parseFloat(window.getComputedStyle(p).lineHeight);
+    }
+    var safeBottom = readSafeAreaBottom();
+    var padBottom = parseFloat(window.getComputedStyle(el).paddingBottom) || 0;
+    if (safeBottom > padBottom) {
+      ceiling -= (safeBottom - padBottom);
+    }
+
+    /* Chrome is the banner without the Legal copy: padding, status and
+       buttons. Measuring it by visually hiding the copy for one frame
+       works in both the row and column layouts. */
+    var chrome = el.offsetHeight;
+    if (p) {
+      p.classList.add('is-visually-hidden');
+      chrome = el.offsetHeight;
+      p.classList.remove('is-visually-hidden');
+    }
+
+    var line = 22;
+    if (p) {
+      line = parseFloat(window.getComputedStyle(p).lineHeight);
       if (!isFinite(line) || line <= 0) {
         line = (parseFloat(window.getComputedStyle(p).fontSize) || 15) * 1.45;
       }
-      var twoLines = line * 2;
-      /* On a reopened banner, if there is not room for about two lines of
-         Legal's copy, hide the copy completely rather than clipping it
-         mid-sentence. First visit always keeps the copy visible. */
-      if (statusShowing && room < twoLines) {
-        p.style.display = 'none';
-        root.style.removeProperty('--consent-p-max');
-      } else {
-        p.style.display = '';
-        root.style.setProperty('--consent-p-max', room + 'px');
-        if (field) {
-          var overlap = field.getBoundingClientRect().bottom + 8 - el.getBoundingClientRect().top;
-          if (overlap > 0) {
-            room = Math.max(0, p.offsetHeight - overlap);
-            if (statusShowing && room < twoLines) {
-              p.style.display = 'none';
-              root.style.removeProperty('--consent-p-max');
-            } else {
-              root.style.setProperty('--consent-p-max', room + 'px');
-            }
+    }
+    var twoLines = line * 2;
+
+    var maxBanner = cssCap;
+    if (ceiling < maxBanner) {
+      maxBanner = ceiling;
+    }
+    /* Never shrink past the chrome (buttons must stay on screen). If
+       that slightly covers an in-view field at extreme zoom, so be it;
+       first-visit copy is still shown in any leftover space. */
+    if (maxBanner < chrome) {
+      maxBanner = chrome;
+    }
+    if (maxBanner < 0) {
+      maxBanner = 0;
+    }
+    /* First visit: keep at least one line of Legal's copy visible.
+       Grow past the 50dvh cap if that is the only way, but never over
+       the header or an on-screen date field. */
+    if (p && !statusShowing) {
+      var oneLine = line;
+      var needed = chrome + oneLine;
+      if (maxBanner < needed) {
+        var hardCap = vh - headerBottom - 8;
+        if (fieldOnScreen && ceiling < hardCap) {
+          hardCap = ceiling;
+        }
+        if (hardCap > maxBanner) {
+          maxBanner = hardCap < needed ? hardCap : needed;
+        }
+      }
+      var copyMin = maxBanner - chrome;
+      if (copyMin < 0) {
+        copyMin = 0;
+      }
+      root.style.setProperty('--consent-copy-min', copyMin + 'px');
+    } else {
+      root.style.removeProperty('--consent-copy-min');
+    }
+    root.style.setProperty('--consent-banner-max', maxBanner + 'px');
+
+    if (p && statusShowing) {
+      var room = el.offsetHeight - chrome;
+      if (room < twoLines) {
+        p.classList.add('is-visually-hidden');
+        root.style.setProperty('--consent-banner-max', chrome + 'px');
+      }
+    }
+
+    /* Second pass: if the in-view field is still covered, shrink toward
+       chrome, but do not hide first-visit copy. */
+    if (p && fieldOnScreen) {
+      var overlap = field.getBoundingClientRect().bottom + 8 - el.getBoundingClientRect().top;
+      if (overlap > 0) {
+        var shrunk = el.offsetHeight - overlap;
+        if (shrunk < chrome) {
+          shrunk = chrome;
+        }
+        root.style.setProperty('--consent-banner-max', shrunk + 'px');
+        if (statusShowing) {
+          room = el.offsetHeight - chrome;
+          if (room < twoLines) {
+            p.classList.add('is-visually-hidden');
+            root.style.setProperty('--consent-banner-max', chrome + 'px');
+          } else {
+            p.classList.remove('is-visually-hidden');
           }
         }
       }
-    } else {
-      root.style.removeProperty('--consent-p-max');
     }
-    var h = open ? el.offsetHeight : 0;
-    root.style.setProperty('--consent-h', h + 'px');
+    root.style.setProperty('--consent-h', el.offsetHeight + 'px');
   }
   window.addEventListener('resize', syncBannerHeight);
   window.addEventListener('orientationchange', syncBannerHeight);
@@ -433,7 +615,7 @@
     var root = siteRoot();
     return {
       aria_label: 'Analytics cookies',
-      text: 'This site uses Google Analytics only if you accept. No analytics cookies are set until you choose. The dates you type are never sent. See the <a href="' + root + 'privacy/">privacy page</a>.',
+      text: 'This site uses Google Analytics only if you accept. No analytics cookies are set unless you accept. The dates you type are never sent. See the <a href="' + root + 'privacy/">privacy page</a>.',
       accept: 'Accept',
       reject: 'Reject',
       on: 'Analytics is currently on.',
@@ -559,6 +741,11 @@
   function openCookieSettings(event) {
     if (event) {
       event.preventDefault();
+      var link = event.target && event.target.closest &&
+          event.target.closest('a[href="#cookie-settings"]');
+      if (link) {
+        cookieSettingsOpener = link;
+      }
     }
     var el = document.getElementById('consent-banner');
     var alreadyOpen = !!(el && !el.hidden &&
@@ -595,7 +782,7 @@
     }
     if (choice === 'granted' || choice === 'denied') {
       applyConsent(choice);
-      hideBanner();
+      hideBanner({ silent: true });
     } else {
       showBanner();
     }

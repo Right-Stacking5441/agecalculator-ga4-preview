@@ -961,7 +961,9 @@ body.widget { --leaf-h: 470px; }
   .obj-pair { grid-template-columns: minmax(0, 1fr) min-content; }
 }
 
-/* Cookie consent banner and the cookie table on /privacy/. */
+/* Cookie consent banner and the cookie table on /privacy/.
+   Font sizes are rem so 200% text / page zoom scales the banner.
+   The text column scrolls; Accept and Reject stay in view. */
 #consent-banner {
   position: fixed;
   left: 0;
@@ -969,20 +971,22 @@ body.widget { --leaf-h: 470px; }
   bottom: 0;
   z-index: 1000;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
   justify-content: space-between;
   gap: var(--s3) var(--s5);
   background: var(--paper);
   border-top: 1.5px solid var(--ink);
   color: var(--ink);
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.45;
   padding-top: var(--s4);
   padding-bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px));
   padding-inline: max(var(--s5), env(safe-area-inset-left, 0px)) max(var(--s5), env(safe-area-inset-right, 0px));
-  max-height: min(50dvh, calc(100dvh - 4.5rem));
+  max-height: var(--consent-banner-max, min(50dvh, calc(100dvh - 4.5rem)));
   box-sizing: border-box;
+  overflow: hidden;
 }
 #consent-banner[hidden],
 html.consent-chosen #consent-banner {
@@ -993,14 +997,31 @@ html.consent-chosen #consent-banner {
   outline-offset: -3px;
 }
 .consent-text {
-  flex: 1 1 16rem;
+  flex: 1 1 auto;
   max-width: 46rem;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 #consent-banner .consent-copy {
+  flex: 1 1 auto;
+  min-height: var(--consent-copy-min, 0px);
   margin: 0;
-  max-height: var(--consent-p-max, 40dvh);
   overflow-y: auto;
+}
+#consent-banner .consent-copy.is-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  margin: -1px;
+  padding: 0;
+  border: 0;
 }
 #consent-banner .consent-status {
   margin: var(--s2) 0 0;
@@ -1012,20 +1033,47 @@ html.consent-chosen #consent-banner {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s3);
+  flex: 0 0 auto;
+  align-self: flex-end;
 }
 #consent-banner button {
   appearance: none;
-  font: 600 16px/1 "Libre Franklin", "LF Fallback", Arial, sans-serif;
+  font: 600 1rem/1 "Libre Franklin", "LF Fallback", Arial, sans-serif;
   color: var(--ink);
   background: var(--paper);
   border: 2px solid var(--ink);
   border-radius: 2px;
-  padding: 0 var(--s4);
+  padding: 0 0.75em;
   height: 44px;
   min-height: 44px;
+  max-height: 44px;
   min-width: 44px;
   cursor: pointer;
 }
+@media (max-width: 40rem) {
+  #consent-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .consent-actions {
+    align-self: flex-start;
+  }
+}
+/* Keep the open Calculators menu above the cookie banner. The header
+   must be a stacking context, or the menu's own z-index stays trapped
+   under the fixed banner. */
+html.has-consent-banner .mast {
+  position: relative;
+  z-index: 1100;
+}
+html.has-consent-banner .nav-menu.is-enhanced { z-index: 1100; }
+html.has-consent-banner .nav-menu.is-enhanced ul {
+  z-index: 1101;
+  /* Stay above the banner, including the wide two-column menu. */
+  max-height: min(52vh, 360px, calc(100dvh - var(--consent-h, 7.5rem) - 4.5rem));
+  overflow-y: auto;
+}
+html.has-consent-banner .nav-menu-back { z-index: 1090; }
 #consent-banner button.is-selected,
 #consent-banner button[aria-pressed="true"] {
   background: var(--desk);

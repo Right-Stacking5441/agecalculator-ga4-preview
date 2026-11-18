@@ -327,6 +327,7 @@
     var header = document.querySelector('.mast');
     var field = document.getElementById('dob-q');
     if (p) {
+      p.style.display = '';
       root.style.removeProperty('--consent-p-max');
       var safeBottom = readSafeAreaBottom();
       var headerBottom = header ? header.getBoundingClientRect().bottom : 0;
@@ -355,13 +356,33 @@
       if (room < 0) {
         room = 0;
       }
-      root.style.setProperty('--consent-p-max', room + 'px');
-      /* Second pass: if the banner still overlaps the field, shrink again. */
-      if (field) {
-        var overlap = field.getBoundingClientRect().bottom + 8 - el.getBoundingClientRect().top;
-        if (overlap > 0) {
-          room = Math.max(0, p.offsetHeight - overlap);
-          root.style.setProperty('--consent-p-max', room + 'px');
+      var status = el.querySelector('.consent-status');
+      var statusShowing = !!(status && !status.hidden && (status.textContent || '').trim());
+      var line = parseFloat(window.getComputedStyle(p).lineHeight);
+      if (!isFinite(line) || line <= 0) {
+        line = (parseFloat(window.getComputedStyle(p).fontSize) || 15) * 1.45;
+      }
+      var twoLines = line * 2;
+      /* On a reopened banner, if there is not room for about two lines of
+         Legal's copy, hide the copy completely rather than clipping it
+         mid-sentence. First visit always keeps the copy visible. */
+      if (statusShowing && room < twoLines) {
+        p.style.display = 'none';
+        root.style.removeProperty('--consent-p-max');
+      } else {
+        p.style.display = '';
+        root.style.setProperty('--consent-p-max', room + 'px');
+        if (field) {
+          var overlap = field.getBoundingClientRect().bottom + 8 - el.getBoundingClientRect().top;
+          if (overlap > 0) {
+            room = Math.max(0, p.offsetHeight - overlap);
+            if (statusShowing && room < twoLines) {
+              p.style.display = 'none';
+              root.style.removeProperty('--consent-p-max');
+            } else {
+              root.style.setProperty('--consent-p-max', room + 'px');
+            }
+          }
         }
       }
     } else {

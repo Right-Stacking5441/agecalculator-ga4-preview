@@ -8,6 +8,7 @@
   var isProd = host === 'agecalculator.com' || host === 'www.agecalculator.com';
   var gaTransportBlocked = false;
   var cookieSettingsOpener = null;
+  var rejectedThisPage = false;
 
   window.dataLayer = window.dataLayer || [];
   window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
@@ -417,9 +418,10 @@
 
   /* Pad the page by the banner height while it is open (CSS reads
      --consent-h). The banner itself is a max-height flex container:
-     the copy (or the whole text column) scrolls, and Accept/Reject
-     stay in view. First-visit copy is never hidden. The keep-clear
-     rule for #dob-q only applies when that field is on screen. */
+     the copy scrolls, and Accept/Reject stay in view. On first visit
+     the copy has a two-line minimum that wins over keeping #dob-q
+     clear (covering the field is acceptable until the visitor chooses).
+     Prefer the full copy when it fits below the header. */
   function readSafeAreaBottom() {
     var probe = document.createElement('div');
     probe.style.cssText = 'position:absolute;visibility:hidden;padding-bottom:env(safe-area-inset-bottom, 0px);';
@@ -445,12 +447,33 @@
     return box.bottom > 0 && box.top < viewHeight();
   }
 
+  function syncCopyKeyboard(p) {
+    if (!p || p.classList.contains('is-visually-hidden')) {
+      if (p) {
+        p.removeAttribute('tabindex');
+        p.removeAttribute('role');
+        p.removeAttribute('aria-label');
+      }
+      return;
+    }
+    if (p.scrollHeight > p.clientHeight + 1) {
+      p.setAttribute('tabindex', '0');
+      p.setAttribute('role', 'region');
+      p.setAttribute('aria-label', 'Cookie information');
+    } else {
+      p.removeAttribute('tabindex');
+      p.removeAttribute('role');
+      p.removeAttribute('aria-label');
+    }
+  }
+
   function syncBannerHeight() {
     var el = document.getElementById('consent-banner');
     var root = document.documentElement;
     var open = el && !el.hidden && !root.classList.contains('consent-chosen');
     if (!open) {
       root.style.removeProperty('--consent-banner-max');
+      root.style.removeProperty('--consent-copy-min');
       root.style.setProperty('--consent-h', '0px');
       return;
     }
@@ -459,10 +482,12 @@
     var field = document.getElementById('dob-q');
     var status = el.querySelector('.consent-status');
     var statusShowing = !!(status && !status.hidden && (status.textContent || '').trim());
+    var firstVisit = !statusShowing;
     if (p) {
       p.classList.remove('is-visually-hidden');
     }
     root.style.removeProperty('--consent-banner-max');
+    root.style.removeProperty('--consent-copy-min');
 
     var vh = viewHeight();
     var rem = parseFloat(window.getComputedStyle(root).fontSize) || 16;
@@ -471,23 +496,21 @@
       cssCap = vh;
     }
     var headerBottom = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
-    var ceiling = vh - headerBottom - 8;
-    var fieldOnScreen = fieldIsOnScreen(field);
-    if (fieldOnScreen) {
+    var headerCeiling = vh - headerBottom - 8;
+    var fieldCeiling = headerCeiling;
+    if (fieldIsOnScreen(field)) {
       var clearField = vh - field.getBoundingClientRect().bottom - 8;
-      if (clearField < ceiling) {
-        ceiling = clearField;
+      if (clearField < fieldCeiling) {
+        fieldCeiling = clearField;
       }
     }
     var safeBottom = readSafeAreaBottom();
     var padBottom = parseFloat(window.getComputedStyle(el).paddingBottom) || 0;
     if (safeBottom > padBottom) {
-      ceiling -= (safeBottom - padBottom);
+      headerCeiling -= (safeBottom - padBottom);
+      fieldCeiling -= (safeBottom - padBottom);
     }
 
-    /* Chrome is the banner without the Legal copy: padding, status and
-       buttons. Measuring it by visually hiding the copy for one frame
-       works in both the row and column layouts. */
     var chrome = el.offsetHeight;
     if (p) {
       p.classList.add('is-visually-hidden');
@@ -503,38 +526,46 @@
       }
     }
     var twoLines = line * 2;
+    var threeLines = line * 3;
 
-    var maxBanner = cssCap;
-    if (ceiling < maxBanner) {
-      maxBanner = ceiling;
-    }
-    /* Never shrink past the chrome (buttons must stay on screen). If
-       that slightly covers an in-view field at extreme zoom, so be it;
-       first-visit copy is still shown in any leftover space. */
-    if (maxBanner < chrome) {
-      maxBanner = chrome;
+    var maxBanner;
+    if (firstVisit && p) {
+      /* Two-line floor wins over keep-clear. Show the full copy when
+         it fits below the header; otherwise as much as will fit, but
+         never less than two lines. */
+      var fullCopy = p.scrollHeight;
+      var minBanner = chrome + twoLines;
+      var preferred = chrome + Math.max(twoLines, fullCopy);
+      /* Aim for at least three visible lines when that still fits. */
+      if (preferred < chrome + threeLines) {
+        preferred = chrome + threeLines;
+      }
+      /* Prefer not covering the header. The two-line floor may slightly
+         overlap it only when even that much will not fit underneath. */
+      if (preferred <= headerCeiling) {
+        maxBanner = preferred;
+      } else if (minBanner <= headerCeiling) {
+        maxBanner = headerCeiling;
+      } else {
+        maxBanner = minBanner;
+      }
+    } else {
+      maxBanner = cssCap;
+      if (fieldCeiling < maxBanner) {
+        maxBanner = fieldCeiling;
+      }
+      if (maxBanner < chrome) {
+        maxBanner = chrome;
+      }
     }
     if (maxBanner < 0) {
       maxBanner = 0;
     }
-    /* First visit: keep at least one line of Legal's copy visible.
-       Grow past the 50dvh cap if that is the only way, but never over
-       the header or an on-screen date field. */
-    if (p && !statusShowing) {
-      var oneLine = line;
-      var needed = chrome + oneLine;
-      if (maxBanner < needed) {
-        var hardCap = vh - headerBottom - 8;
-        if (fieldOnScreen && ceiling < hardCap) {
-          hardCap = ceiling;
-        }
-        if (hardCap > maxBanner) {
-          maxBanner = hardCap < needed ? hardCap : needed;
-        }
-      }
+
+    if (firstVisit && p) {
       var copyMin = maxBanner - chrome;
-      if (copyMin < 0) {
-        copyMin = 0;
+      if (copyMin < twoLines) {
+        copyMin = twoLines;
       }
       root.style.setProperty('--consent-copy-min', copyMin + 'px');
     } else {
@@ -550,9 +581,9 @@
       }
     }
 
-    /* Second pass: if the in-view field is still covered, shrink toward
-       chrome, but do not hide first-visit copy. */
-    if (p && fieldOnScreen) {
+    /* Reopen only: if the in-view field is still covered, shrink toward
+       chrome. First visit must not shrink below the two-line floor. */
+    if (p && !firstVisit && fieldIsOnScreen(field)) {
       var overlap = field.getBoundingClientRect().bottom + 8 - el.getBoundingClientRect().top;
       if (overlap > 0) {
         var shrunk = el.offsetHeight - overlap;
@@ -560,21 +591,36 @@
           shrunk = chrome;
         }
         root.style.setProperty('--consent-banner-max', shrunk + 'px');
-        if (statusShowing) {
-          room = el.offsetHeight - chrome;
-          if (room < twoLines) {
-            p.classList.add('is-visually-hidden');
-            root.style.setProperty('--consent-banner-max', chrome + 'px');
-          } else {
-            p.classList.remove('is-visually-hidden');
-          }
+        room = el.offsetHeight - chrome;
+        if (room < twoLines) {
+          p.classList.add('is-visually-hidden');
+          root.style.setProperty('--consent-banner-max', chrome + 'px');
+        } else {
+          p.classList.remove('is-visually-hidden');
         }
       }
     }
     root.style.setProperty('--consent-h', el.offsetHeight + 'px');
+    syncCopyKeyboard(p);
   }
-  window.addEventListener('resize', syncBannerHeight);
-  window.addEventListener('orientationchange', syncBannerHeight);
+
+  var syncRaf = 0;
+  function requestSyncBannerHeight() {
+    if (syncRaf) {
+      return;
+    }
+    syncRaf = window.requestAnimationFrame(function () {
+      syncRaf = 0;
+      syncBannerHeight();
+    });
+  }
+  window.addEventListener('resize', requestSyncBannerHeight);
+  window.addEventListener('orientationchange', requestSyncBannerHeight);
+  window.addEventListener('scroll', requestSyncBannerHeight, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', requestSyncBannerHeight);
+    window.visualViewport.addEventListener('scroll', requestSyncBannerHeight);
+  }
 
   function placeBanner(el) {
     var skip = document.querySelector('.skip');
@@ -597,16 +643,62 @@
     if (accept) {
       accept.addEventListener('click', function () {
         store('granted');
+        /* A re-Accept after Reject on the same page would otherwise
+           revive the withdrawn client id. Reload so gtag starts fresh. */
+        if (rejectedThisPage) {
+          location.reload();
+          return;
+        }
         applyConsent('granted');
         hideBanner();
       });
     }
     if (reject) {
       reject.addEventListener('click', function () {
+        rejectedThisPage = true;
         store('denied');
         applyConsent('denied');
         clearGaCookies();
         hideBanner();
+      });
+    }
+    var copy = el.querySelector('.consent-copy');
+    if (copy && copy.getAttribute('data-scroll-bound') !== '1') {
+      copy.setAttribute('data-scroll-bound', '1');
+      var privacyLink = copy.querySelector('a');
+      if (privacyLink) {
+        privacyLink.addEventListener('focus', function () {
+          try {
+            privacyLink.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          } catch (e) { /* ignore */ }
+        });
+      }
+      copy.addEventListener('keydown', function (event) {
+        if (copy.scrollHeight <= copy.clientHeight + 1) {
+          return;
+        }
+        var step = parseFloat(window.getComputedStyle(copy).lineHeight) || 22;
+        var max = copy.scrollHeight - copy.clientHeight;
+        var top = copy.scrollTop;
+        if (event.key === 'ArrowDown') {
+          copy.scrollTop = Math.min(max, top + step);
+          event.preventDefault();
+        } else if (event.key === 'ArrowUp') {
+          copy.scrollTop = Math.max(0, top - step);
+          event.preventDefault();
+        } else if (event.key === 'PageDown' || event.key === ' ') {
+          copy.scrollTop = Math.min(max, top + copy.clientHeight);
+          event.preventDefault();
+        } else if (event.key === 'PageUp') {
+          copy.scrollTop = Math.max(0, top - copy.clientHeight);
+          event.preventDefault();
+        } else if (event.key === 'Home') {
+          copy.scrollTop = 0;
+          event.preventDefault();
+        } else if (event.key === 'End') {
+          copy.scrollTop = max;
+          event.preventDefault();
+        }
       });
     }
   }
@@ -615,7 +707,7 @@
     var root = siteRoot();
     return {
       aria_label: 'Analytics cookies',
-      text: 'This site uses Google Analytics only if you accept. No analytics cookies are set unless you accept. The dates you type are never sent. See the <a href="' + root + 'privacy/">privacy page</a>.',
+      text: 'This site uses Google Analytics only if you accept. If you don\'t, no analytics cookies are set. The dates you type are never sent. See the <a href="' + root + 'privacy/">privacy page</a>.',
       accept: 'Accept',
       reject: 'Reject',
       on: 'Analytics is currently on.',

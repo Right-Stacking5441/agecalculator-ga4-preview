@@ -1011,6 +1011,10 @@ html.consent-chosen #consent-banner {
   margin: 0;
   overflow-y: auto;
 }
+#consent-banner .consent-copy:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
 #consent-banner .consent-copy.is-visually-hidden {
   position: absolute;
   width: 1px;
@@ -1056,7 +1060,12 @@ html.consent-chosen #consent-banner {
     align-items: stretch;
   }
   .consent-actions {
-    align-self: flex-start;
+    align-self: stretch;
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+  #consent-banner .consent-actions button {
+    flex: 1 1 0;
   }
 }
 /* Keep the open Calculators menu above the cookie banner. The header

@@ -185,53 +185,107 @@
     return !!name && name.indexOf('form_') === 0;
   }
 
-  function collectCarriesFormEvent(url, body) {
-    function check(qs) {
-      if (!qs) {
-        return false;
+  function lineIsFormEvent(qs) {
+    if (!qs) {
+      return false;
+    }
+    try {
+      var sp = new URLSearchParams(qs.charAt(0) === '?' ? qs.slice(1) : qs);
+      return eventNameIsForm(sp.get('en'));
+    } catch (e) {
+      return /(?:^|[?&])en=form_/.test(qs);
+    }
+  }
+
+  function urlHasFormEvent(url) {
+    if (!url) {
+      return false;
+    }
+    try {
+      var u = new URL(typeof url === 'string' ? url : String(url), location.href);
+      return lineIsFormEvent(u.search);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function collectBodyText(data) {
+    if (data == null) {
+      return undefined;
+    }
+    if (typeof data === 'string') {
+      return data;
+    }
+    try {
+      if (typeof Uint8Array !== 'undefined' && data instanceof Uint8Array) {
+        return new TextDecoder().decode(data);
       }
-      try {
-        var sp = new URLSearchParams(qs.charAt(0) === '?' ? qs.slice(1) : qs);
-        return eventNameIsForm(sp.get('en'));
-      } catch (e) {
-        return false;
+      if (typeof ArrayBuffer !== 'undefined' && data instanceof ArrayBuffer) {
+        return new TextDecoder().decode(data);
+      }
+    } catch (e) { /* ignore */ }
+    return undefined;
+  }
+
+  function stripFormEventLines(body) {
+    if (typeof body !== 'string' || !body) {
+      return { body: body, removed: 0, kept: 0 };
+    }
+    var lines = body.split('\n');
+    var kept = [];
+    var removed = 0;
+    for (var i = 0; i < lines.length; i++) {
+      if (lineIsFormEvent(lines[i])) {
+        removed++;
+      } else {
+        kept.push(lines[i]);
       }
     }
-    if (url) {
-      try {
-        var u = new URL(typeof url === 'string' ? url : String(url), location.href);
-        if (check(u.search)) {
-          return true;
-        }
-      } catch (e) { /* ignore */ }
-    }
-    if (typeof body === 'string') {
-      var lines = body.split('\n');
-      for (var i = 0; i < lines.length; i++) {
-        if (check(lines[i])) {
-          return true;
-        }
+    return { body: kept.join('\n'), removed: removed, kept: kept.length };
+  }
+
+  function stripFormEventFromUrl(url) {
+    try {
+      var u = new URL(typeof url === 'string' ? url : String(url), location.href);
+      if (eventNameIsForm(u.searchParams.get('en'))) {
+        u.searchParams.delete('en');
+        return u.toString();
       }
+    } catch (e) { /* ignore */ }
+    return url;
+  }
+
+  /* Form_* events must not be sent, but a batched /g/collect body may
+     also carry ordinary events. Strip only the form_* lines and send
+     the rest. Drop the request if nothing but form_* remains (including
+     a single event in the URL query). */
+  function prepareCollect(url, body) {
+    if (!isGaCollectUrl(url)) {
+      return { drop: false, url: url, body: body };
     }
-    return false;
+    if (gaTransportBlocked || storedChoice() === 'denied') {
+      return { drop: true };
+    }
+    var text = typeof body === 'string' ? body : collectBodyText(body);
+    var stripped = stripFormEventLines(text);
+    var urlForm = urlHasFormEvent(url);
+    var bodyHasOther = stripped.kept > 0;
+    if (urlForm && !bodyHasOther) {
+      return { drop: true };
+    }
+    if (stripped.removed > 0 && !bodyHasOther) {
+      return { drop: true };
+    }
+    var nextUrl = scrubCollectUrlString(urlForm ? stripFormEventFromUrl(url) : url);
+    var nextBody = body;
+    if (typeof text === 'string') {
+      nextBody = scrubCollectBody(stripped.removed > 0 ? stripped.body : text);
+    }
+    return { drop: false, url: nextUrl, body: nextBody };
   }
 
   function shouldDropCollect(url, body) {
-    if (!isGaCollectUrl(url)) {
-      return false;
-    }
-    /* Safeguard: never send form interaction events, even if the
-       served gtag config still has vtp_enableForm enabled. */
-    if (collectCarriesFormEvent(url, body)) {
-      return true;
-    }
-    if (gaTransportBlocked) {
-      return true;
-    }
-    if (storedChoice() === 'denied') {
-      return true;
-    }
-    return false;
+    return prepareCollect(url, body).drop === true;
   }
 
   /* Enhanced measurement can send later events (scroll, outbound click,
@@ -247,14 +301,11 @@
     if (navigator.sendBeacon) {
       var beacon = navigator.sendBeacon.bind(navigator);
       navigator.sendBeacon = function (url, data) {
-        if (shouldDropCollect(url, data)) {
+        var prepared = prepareCollect(url, data);
+        if (prepared.drop) {
           return true;
         }
-        url = scrubCollectUrlString(url);
-        if (typeof data === 'string') {
-          data = scrubCollectBody(data);
-        }
-        return beacon(url, data);
+        return beacon(prepared.url, prepared.body);
       };
     }
     if (window.fetch) {
@@ -265,18 +316,22 @@
         if (fetchBody == null && input && typeof input !== 'string' && input.body) {
           fetchBody = input.body;
         }
-        if (shouldDropCollect(fetchUrl, typeof fetchBody === 'string' ? fetchBody : undefined)) {
+        var prepared = prepareCollect(fetchUrl, typeof fetchBody === 'string' ? fetchBody : collectBodyText(fetchBody));
+        if (prepared.drop) {
           return Promise.resolve(new Response(null, { status: 204, statusText: 'No Content' }));
         }
         if (typeof input === 'string') {
-          input = scrubCollectUrlString(input);
+          input = prepared.url;
         } else if (input && input.url) {
           try {
-            input = new Request(scrubCollectUrlString(input.url), input);
+            input = new Request(prepared.url, input);
           } catch (e) { /* keep original */ }
         }
-        if (init && typeof init.body === 'string') {
-          init = Object.assign({}, init, { body: scrubCollectBody(init.body) });
+        if (init) {
+          init = Object.assign({}, init);
+          if (prepared.body !== undefined) {
+            init.body = prepared.body;
+          }
         }
         return origFetch(input, init);
       };
@@ -287,19 +342,24 @@
       XMLHttpRequest.prototype.open = function (method, url) {
         this.__agecalcGaUrl = url;
         if (typeof url === 'string') {
-          if (shouldDropCollect(url)) {
+          if (isGaCollectUrl(url) && (gaTransportBlocked || storedChoice() === 'denied')) {
             this.__agecalcGaDrop = true;
             arguments[1] = 'about:blank';
-          } else {
-            arguments[1] = scrubCollectUrlString(url);
+          } else if (isGaCollectUrl(url)) {
+            arguments[1] = scrubCollectUrlString(urlHasFormEvent(url) ? stripFormEventFromUrl(url) : url);
           }
         }
         return open.apply(this, arguments);
       };
       XMLHttpRequest.prototype.send = function (body) {
-        if (this.__agecalcGaDrop || shouldDropCollect(this.__agecalcGaUrl, body)) {
+        if (this.__agecalcGaDrop) {
           return;
         }
+        var prepared = prepareCollect(this.__agecalcGaUrl, body);
+        if (prepared.drop) {
+          return;
+        }
+        arguments[0] = prepared.body;
         return send.apply(this, arguments);
       };
     }
@@ -538,6 +598,71 @@
 
   var bannerHeightLock = null;
 
+  function shrinkBannerIfFieldCovered(el, p) {
+    var field = document.getElementById('dob-q');
+    if (!fieldIsOnScreen(field)) {
+      return false;
+    }
+    var gap = 8;
+    var fieldBottom = field.getBoundingClientRect().bottom;
+    var bannerTop = el.getBoundingClientRect().top;
+    if (bannerTop + 0.5 >= fieldBottom + gap) {
+      return false;
+    }
+    var root = document.documentElement;
+    var vh = viewHeight();
+    var header = document.querySelector('.mast');
+    var headerBottom = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+    var headerHardMax = Math.max(0, Math.floor(vh - headerBottom));
+    var safeBottom = readSafeAreaBottom();
+    var padBottom = parseFloat(window.getComputedStyle(el).paddingBottom) || 0;
+    if (safeBottom > padBottom) {
+      headerHardMax = Math.max(0, headerHardMax - Math.ceil(safeBottom - padBottom));
+    }
+    var chrome = el.offsetHeight;
+    if (p) {
+      var wasHidden = p.classList.contains('is-visually-hidden');
+      if (!wasHidden) {
+        p.classList.add('is-visually-hidden');
+        chrome = el.offsetHeight;
+        p.classList.remove('is-visually-hidden');
+      }
+    }
+    var shrunk = Math.floor(vh - (fieldBottom + gap));
+    if (shrunk < chrome) {
+      shrunk = chrome;
+    }
+    if (shrunk > headerHardMax) {
+      shrunk = headerHardMax;
+    }
+    if (bannerHeightLock != null && shrunk > bannerHeightLock) {
+      shrunk = bannerHeightLock;
+    }
+    root.style.setProperty('--consent-banner-max', shrunk + 'px');
+    var line = 22;
+    if (p) {
+      line = parseFloat(window.getComputedStyle(p).lineHeight);
+      if (!isFinite(line) || line <= 0) {
+        line = 22;
+      }
+    }
+    var room = el.offsetHeight - chrome;
+    if (p && room < line * 2) {
+      p.classList.add('is-visually-hidden');
+      var hiddenMax = chrome;
+      if (hiddenMax > headerHardMax) {
+        hiddenMax = headerHardMax;
+      }
+      if (bannerHeightLock != null && hiddenMax > bannerHeightLock) {
+        hiddenMax = bannerHeightLock;
+      }
+      root.style.setProperty('--consent-banner-max', hiddenMax + 'px');
+    }
+    bannerHeightLock = el.offsetHeight;
+    root.style.setProperty('--consent-h', bannerHeightLock + 'px');
+    return true;
+  }
+
   function syncBannerHeight(reason) {
     var el = document.getElementById('consent-banner');
     var root = document.documentElement;
@@ -550,8 +675,11 @@
       return;
     }
     var p = el.querySelector('.consent-copy');
-    /* Scroll must not change the reserved banner height (CLS). */
+    /* Scroll must not grow the reserved banner height (CLS). If a
+       reopened banner now covers #dob-q, shrink it to keep the field
+       clear, including any safe-area inset already in the banner box. */
     if (reason === 'scroll' && bannerHeightLock != null) {
+      shrinkBannerIfFieldCovered(el, p);
       syncCopyKeyboard(p);
       return;
     }

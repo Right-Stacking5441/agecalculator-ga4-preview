@@ -1007,7 +1007,7 @@ html.consent-chosen #consent-banner {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 #consent-banner .consent-copy {
   flex: 1 1 auto;
@@ -1067,12 +1067,12 @@ html.consent-chosen #consent-banner {
   }
   .consent-actions {
     align-self: stretch;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     width: 100%;
   }
   #consent-banner .consent-actions button {
-    flex: 1 1 8em;
-    min-width: 8em;
+    flex: 1 1 0;
+    min-width: 44px;
   }
 }
 #consent-banner .consent-actions.is-stacked {

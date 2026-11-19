@@ -181,8 +181,57 @@
     }
   }
 
-  function shouldDropCollect(url) {
-    return gaTransportBlocked && isGaCollectUrl(url);
+  function eventNameIsForm(name) {
+    return !!name && name.indexOf('form_') === 0;
+  }
+
+  function collectCarriesFormEvent(url, body) {
+    function check(qs) {
+      if (!qs) {
+        return false;
+      }
+      try {
+        var sp = new URLSearchParams(qs.charAt(0) === '?' ? qs.slice(1) : qs);
+        return eventNameIsForm(sp.get('en'));
+      } catch (e) {
+        return false;
+      }
+    }
+    if (url) {
+      try {
+        var u = new URL(typeof url === 'string' ? url : String(url), location.href);
+        if (check(u.search)) {
+          return true;
+        }
+      } catch (e) { /* ignore */ }
+    }
+    if (typeof body === 'string') {
+      var lines = body.split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        if (check(lines[i])) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function shouldDropCollect(url, body) {
+    if (!isGaCollectUrl(url)) {
+      return false;
+    }
+    /* Safeguard: never send form interaction events, even if the
+       served gtag config still has vtp_enableForm enabled. */
+    if (collectCarriesFormEvent(url, body)) {
+      return true;
+    }
+    if (gaTransportBlocked) {
+      return true;
+    }
+    if (storedChoice() === 'denied') {
+      return true;
+    }
+    return false;
   }
 
   /* Enhanced measurement can send later events (scroll, outbound click,
@@ -198,7 +247,7 @@
     if (navigator.sendBeacon) {
       var beacon = navigator.sendBeacon.bind(navigator);
       navigator.sendBeacon = function (url, data) {
-        if (shouldDropCollect(url)) {
+        if (shouldDropCollect(url, data)) {
           return true;
         }
         url = scrubCollectUrlString(url);
@@ -212,8 +261,12 @@
       var origFetch = window.fetch.bind(window);
       window.fetch = function (input, init) {
         var fetchUrl = typeof input === 'string' ? input : (input && input.url);
-        if (shouldDropCollect(fetchUrl)) {
-          return Promise.resolve(new Response('', { status: 204, statusText: 'No Content' }));
+        var fetchBody = init && init.body;
+        if (fetchBody == null && input && typeof input !== 'string' && input.body) {
+          fetchBody = input.body;
+        }
+        if (shouldDropCollect(fetchUrl, typeof fetchBody === 'string' ? fetchBody : undefined)) {
+          return Promise.resolve(new Response(null, { status: 204, statusText: 'No Content' }));
         }
         if (typeof input === 'string') {
           input = scrubCollectUrlString(input);
@@ -235,6 +288,7 @@
         this.__agecalcGaUrl = url;
         if (typeof url === 'string') {
           if (shouldDropCollect(url)) {
+            this.__agecalcGaDrop = true;
             arguments[1] = 'about:blank';
           } else {
             arguments[1] = scrubCollectUrlString(url);
@@ -242,8 +296,8 @@
         }
         return open.apply(this, arguments);
       };
-      XMLHttpRequest.prototype.send = function () {
-        if (shouldDropCollect(this.__agecalcGaUrl)) {
+      XMLHttpRequest.prototype.send = function (body) {
+        if (this.__agecalcGaDrop || shouldDropCollect(this.__agecalcGaUrl, body)) {
           return;
         }
         return send.apply(this, arguments);
@@ -467,17 +521,40 @@
     }
   }
 
-  function syncBannerHeight() {
+  function syncButtonLayout(el) {
+    var actions = el && el.querySelector('.consent-actions');
+    var accept = document.getElementById('consent-accept');
+    var reject = document.getElementById('consent-reject');
+    if (!actions || !accept || !reject) {
+      return;
+    }
+    actions.classList.remove('is-stacked');
+    var clips = accept.scrollWidth > accept.clientWidth + 0.5 ||
+      reject.scrollWidth > reject.clientWidth + 0.5;
+    if (clips) {
+      actions.classList.add('is-stacked');
+    }
+  }
+
+  var bannerHeightLock = null;
+
+  function syncBannerHeight(reason) {
     var el = document.getElementById('consent-banner');
     var root = document.documentElement;
     var open = el && !el.hidden && !root.classList.contains('consent-chosen');
     if (!open) {
+      bannerHeightLock = null;
       root.style.removeProperty('--consent-banner-max');
       root.style.removeProperty('--consent-copy-min');
       root.style.setProperty('--consent-h', '0px');
       return;
     }
     var p = el.querySelector('.consent-copy');
+    /* Scroll must not change the reserved banner height (CLS). */
+    if (reason === 'scroll' && bannerHeightLock != null) {
+      syncCopyKeyboard(p);
+      return;
+    }
     var header = document.querySelector('.mast');
     var field = document.getElementById('dob-q');
     var status = el.querySelector('.consent-status');
@@ -486,8 +563,10 @@
     if (p) {
       p.classList.remove('is-visually-hidden');
     }
+    el.classList.remove('is-compact');
     root.style.removeProperty('--consent-banner-max');
     root.style.removeProperty('--consent-copy-min');
+    syncButtonLayout(el);
 
     var vh = viewHeight();
     var rem = parseFloat(window.getComputedStyle(root).fontSize) || 16;
@@ -496,6 +575,7 @@
       cssCap = vh;
     }
     var headerBottom = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+    var headerHardMax = Math.max(0, Math.floor(vh - headerBottom));
     var headerCeiling = vh - headerBottom - 8;
     var fieldCeiling = headerCeiling;
     if (fieldIsOnScreen(field)) {
@@ -509,14 +589,19 @@
     if (safeBottom > padBottom) {
       headerCeiling -= (safeBottom - padBottom);
       fieldCeiling -= (safeBottom - padBottom);
+      headerHardMax = Math.max(0, headerHardMax - Math.ceil(safeBottom - padBottom));
     }
 
-    var chrome = el.offsetHeight;
-    if (p) {
-      p.classList.add('is-visually-hidden');
-      chrome = el.offsetHeight;
-      p.classList.remove('is-visually-hidden');
+    function measureChrome() {
+      var h = el.offsetHeight;
+      if (p) {
+        p.classList.add('is-visually-hidden');
+        h = el.offsetHeight;
+        p.classList.remove('is-visually-hidden');
+      }
+      return h;
     }
+    var chrome = measureChrome();
 
     var line = 22;
     if (p) {
@@ -528,20 +613,21 @@
     var twoLines = line * 2;
     var threeLines = line * 3;
 
+    /* Tight viewports: shrink padding so two lines of copy fit
+       under the header instead of overlapping it. */
+    if (firstVisit && p && chrome + twoLines > headerHardMax && !el.classList.contains('is-compact')) {
+      el.classList.add('is-compact');
+      chrome = measureChrome();
+    }
+
     var maxBanner;
     if (firstVisit && p) {
-      /* Two-line floor wins over keep-clear. Show the full copy when
-         it fits below the header; otherwise as much as will fit, but
-         never less than two lines. */
       var fullCopy = p.scrollHeight;
       var minBanner = chrome + twoLines;
       var preferred = chrome + Math.max(twoLines, fullCopy);
-      /* Aim for at least three visible lines when that still fits. */
       if (preferred < chrome + threeLines) {
         preferred = chrome + threeLines;
       }
-      /* Prefer not covering the header. The two-line floor may slightly
-         overlap it only when even that much will not fit underneath. */
       if (preferred <= headerCeiling) {
         maxBanner = preferred;
       } else if (minBanner <= headerCeiling) {
@@ -561,11 +647,18 @@
     if (maxBanner < 0) {
       maxBanner = 0;
     }
+    /* Never overlap the header, even by a few pixels. */
+    if (maxBanner > headerHardMax) {
+      maxBanner = headerHardMax;
+    }
+    if (maxBanner < chrome && chrome <= headerHardMax) {
+      maxBanner = chrome;
+    }
 
     if (firstVisit && p) {
       var copyMin = maxBanner - chrome;
-      if (copyMin < twoLines) {
-        copyMin = twoLines;
+      if (copyMin < 0) {
+        copyMin = 0;
       }
       root.style.setProperty('--consent-copy-min', copyMin + 'px');
     } else {
@@ -577,12 +670,14 @@
       var room = el.offsetHeight - chrome;
       if (room < twoLines) {
         p.classList.add('is-visually-hidden');
-        root.style.setProperty('--consent-banner-max', chrome + 'px');
+        var hiddenMax = chrome;
+        if (hiddenMax > headerHardMax) {
+          hiddenMax = headerHardMax;
+        }
+        root.style.setProperty('--consent-banner-max', hiddenMax + 'px');
       }
     }
 
-    /* Reopen only: if the in-view field is still covered, shrink toward
-       chrome. First visit must not shrink below the two-line floor. */
     if (p && !firstVisit && fieldIsOnScreen(field)) {
       var overlap = field.getBoundingClientRect().bottom + 8 - el.getBoundingClientRect().top;
       if (overlap > 0) {
@@ -590,37 +685,191 @@
         if (shrunk < chrome) {
           shrunk = chrome;
         }
+        if (shrunk > headerHardMax) {
+          shrunk = headerHardMax;
+        }
         root.style.setProperty('--consent-banner-max', shrunk + 'px');
         room = el.offsetHeight - chrome;
         if (room < twoLines) {
           p.classList.add('is-visually-hidden');
-          root.style.setProperty('--consent-banner-max', chrome + 'px');
+          hiddenMax = chrome;
+          if (hiddenMax > headerHardMax) {
+            hiddenMax = headerHardMax;
+          }
+          root.style.setProperty('--consent-banner-max', hiddenMax + 'px');
         } else {
           p.classList.remove('is-visually-hidden');
         }
       }
     }
-    root.style.setProperty('--consent-h', el.offsetHeight + 'px');
+    syncButtonLayout(el);
+    bannerHeightLock = el.offsetHeight;
+    root.style.setProperty('--consent-h', bannerHeightLock + 'px');
     syncCopyKeyboard(p);
   }
 
   var syncRaf = 0;
-  function requestSyncBannerHeight() {
+  var syncReason = 'layout';
+  function requestSyncBannerHeight(reason) {
+    if (reason === 'layout' || reason === 'resize' || reason === 'orientation') {
+      syncReason = 'layout';
+      bannerHeightLock = null;
+    } else if (syncReason !== 'layout') {
+      syncReason = reason || 'scroll';
+    }
     if (syncRaf) {
       return;
     }
     syncRaf = window.requestAnimationFrame(function () {
       syncRaf = 0;
-      syncBannerHeight();
+      var why = syncReason;
+      syncReason = 'scroll';
+      syncBannerHeight(why);
     });
   }
-  window.addEventListener('resize', requestSyncBannerHeight);
-  window.addEventListener('orientationchange', requestSyncBannerHeight);
-  window.addEventListener('scroll', requestSyncBannerHeight, { passive: true });
+  window.addEventListener('resize', function () { requestSyncBannerHeight('layout'); });
+  window.addEventListener('orientationchange', function () { requestSyncBannerHeight('layout'); });
+  window.addEventListener('scroll', function () { requestSyncBannerHeight('scroll'); }, { passive: true });
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', requestSyncBannerHeight);
-    window.visualViewport.addEventListener('scroll', requestSyncBannerHeight);
+    window.visualViewport.addEventListener('resize', function () { requestSyncBannerHeight('layout'); });
+    window.visualViewport.addEventListener('scroll', function () { requestSyncBannerHeight('scroll'); });
   }
+
+  var STASH_KEY = 'agecalculator.consentReloadStash';
+
+  function stashPageForReload() {
+    var data = {
+      path: location.pathname,
+      search: location.search,
+      scrollX: window.scrollX || 0,
+      scrollY: window.scrollY || 0,
+      fields: {}
+    };
+    var nodes = document.querySelectorAll('input, textarea, select');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.type === 'hidden' || el.type === 'password' || el.type === 'file') {
+        continue;
+      }
+      var key = el.id || el.name;
+      if (!key) {
+        continue;
+      }
+      if (el.type === 'checkbox' || el.type === 'radio') {
+        data.fields[key] = { type: el.type, checked: !!el.checked, value: el.value, name: el.name || '' };
+      } else {
+        data.fields[key] = { type: el.type || el.tagName.toLowerCase(), value: el.value, name: el.name || '' };
+      }
+    }
+    try {
+      sessionStorage.setItem(STASH_KEY, JSON.stringify(data));
+    } catch (e) { /* ignore */ }
+  }
+
+  function restoreReloadStash() {
+    var raw;
+    try {
+      raw = sessionStorage.getItem(STASH_KEY);
+      sessionStorage.removeItem(STASH_KEY);
+    } catch (e) {
+      return;
+    }
+    if (!raw) {
+      return;
+    }
+    var data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      return;
+    }
+    if (data.path && data.path !== location.pathname) {
+      return;
+    }
+    var fields = data.fields || {};
+    Object.keys(fields).forEach(function (key) {
+      var f = fields[key];
+      var el = document.getElementById(key);
+      if (!el && f.name) {
+        if (f.type === 'radio') {
+          el = document.querySelector('input[type="radio"][name="' + f.name + '"][value="' + String(f.value).replace(/"/g, '') + '"]');
+        } else {
+          el = document.querySelector('[name="' + f.name + '"]');
+        }
+      }
+      if (!el) {
+        return;
+      }
+      if (f.type === 'checkbox' || f.type === 'radio') {
+        el.checked = !!f.checked;
+      } else if (typeof f.value === 'string') {
+        el.value = f.value;
+      }
+      try {
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (err) { /* ignore */ }
+    });
+    if (typeof data.scrollY === 'number') {
+      window.scrollTo(data.scrollX || 0, data.scrollY);
+    }
+    window.setTimeout(function () {
+      var link = document.querySelector('footer a[href="#cookie-settings"]');
+      var status = document.querySelector('#consent-banner .consent-status');
+      var target = link || (status && !status.hidden ? status : null);
+      if (!target) {
+        return;
+      }
+      if (target === status && !status.hasAttribute('tabindex')) {
+        status.setAttribute('tabindex', '-1');
+      }
+      try {
+        target.focus({ preventScroll: true });
+      } catch (err) {
+        try { target.focus(); } catch (err2) { /* ignore */ }
+      }
+    }, 0);
+  }
+
+  function applyChoiceFromOtherContext() {
+    var choice = storedChoice();
+    if (choice === 'denied') {
+      rejectedThisPage = true;
+      applyConsent('denied');
+      clearGaCookies();
+      var el = document.getElementById('consent-banner');
+      if (el && !el.hidden) {
+        updateBannerChoiceState(el);
+      }
+      hideBanner({ silent: true });
+    } else if (choice === 'granted') {
+      /* Another tab accepted. Don't start gtag here if this tab has
+         never loaded it (or had withdrawn): a reload or navigation
+         will start a fresh client. Just hide an open first-visit banner. */
+      var banner = document.getElementById('consent-banner');
+      if (banner && !banner.hidden &&
+          !document.documentElement.classList.contains('consent-chosen')) {
+        hideBanner({ silent: true });
+      } else if (banner && !banner.hidden) {
+        updateBannerChoiceState(banner);
+      }
+    }
+  }
+
+  window.addEventListener('storage', function (event) {
+    if (event.key !== KEY && event.key !== null) {
+      return;
+    }
+    applyChoiceFromOtherContext();
+  });
+  window.addEventListener('pageshow', function () {
+    applyChoiceFromOtherContext();
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      applyChoiceFromOtherContext();
+    }
+  });
 
   function placeBanner(el) {
     var skip = document.querySelector('.skip');
@@ -646,6 +895,7 @@
         /* A re-Accept after Reject on the same page would otherwise
            revive the withdrawn client id. Reload so gtag starts fresh. */
         if (rejectedThisPage) {
+          stashPageForReload();
           location.reload();
           return;
         }
@@ -707,7 +957,7 @@
     var root = siteRoot();
     return {
       aria_label: 'Analytics cookies',
-      text: 'This site uses Google Analytics only if you accept. If you don\'t, no analytics cookies are set. The dates you type are never sent. See the <a href="' + root + 'privacy/">privacy page</a>.',
+      text: 'This site uses Google Analytics only if you accept. If you don’t, no analytics cookies are set. The dates you type are never sent. See the <a href="' + root + 'privacy/">privacy page</a>.',
       accept: 'Accept',
       reject: 'Reject',
       on: 'Analytics is currently on.',
@@ -808,7 +1058,8 @@
     document.documentElement.classList.remove('consent-chosen');
     document.body.classList.add('has-consent-banner');
     updateBannerChoiceState(el);
-    syncBannerHeight();
+    bannerHeightLock = null;
+    syncBannerHeight('layout');
     bindBannerButtons(el);
   }
 
@@ -878,6 +1129,7 @@
     } else {
       showBanner();
     }
+    restoreReloadStash();
   }
 
   if (document.readyState === 'loading') {

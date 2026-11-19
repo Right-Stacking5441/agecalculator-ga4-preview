@@ -988,6 +988,10 @@ body.widget { --leaf-h: 470px; }
   box-sizing: border-box;
   overflow: hidden;
 }
+#consent-banner.is-compact {
+  padding-top: 10px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+}
 #consent-banner[hidden],
 html.consent-chosen #consent-banner {
   display: none !important;
@@ -1009,11 +1013,12 @@ html.consent-chosen #consent-banner {
   flex: 1 1 auto;
   min-height: var(--consent-copy-min, 0px);
   margin: 0;
+  padding: 0 0.15em;
   overflow-y: auto;
 }
 #consent-banner .consent-copy:focus {
   outline: 3px solid var(--focus);
-  outline-offset: -3px;
+  outline-offset: 2px;
 }
 #consent-banner .consent-copy.is-visually-hidden {
   position: absolute;
@@ -1052,6 +1057,7 @@ html.consent-chosen #consent-banner {
   min-height: 44px;
   max-height: 44px;
   min-width: 44px;
+  white-space: nowrap;
   cursor: pointer;
 }
 @media (max-width: 40rem) {
@@ -1061,12 +1067,23 @@ html.consent-chosen #consent-banner {
   }
   .consent-actions {
     align-self: stretch;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     width: 100%;
   }
   #consent-banner .consent-actions button {
-    flex: 1 1 0;
+    flex: 1 1 8em;
+    min-width: 8em;
   }
+}
+#consent-banner .consent-actions.is-stacked {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+#consent-banner .consent-actions.is-stacked button {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
 }
 /* Keep the open Calculators menu above the cookie banner. The header
    must be a stacking context, or the menu's own z-index stays trapped

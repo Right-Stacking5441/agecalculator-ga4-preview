@@ -1052,7 +1052,9 @@ html.consent-chosen #consent-banner {
   background: var(--paper);
   border: 2px solid var(--ink);
   border-radius: 2px;
-  padding: 0 0.75em;
+  /* Fixed horizontal padding so 200% text does not inflate the
+     padding, stack the buttons, and clip the last line of copy. */
+  padding: 0 12px;
   height: 44px;
   min-height: 44px;
   max-height: 44px;

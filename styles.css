@@ -1121,6 +1121,12 @@ body.has-consent-banner {
   font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
+.cookie-table caption {
+  caption-side: top;
+  text-align: left;
+  font-weight: 700;
+  padding: 0 0 var(--s3);
+}
 .cookie-table th {
   text-align: left;
   font-weight: 700;
@@ -1146,6 +1152,7 @@ body.has-consent-banner {
     clip: rect(0 0 0 0);
   }
   .cookie-table,
+  .cookie-table caption,
   .cookie-table tbody,
   .cookie-table tr,
   .cookie-table td {
